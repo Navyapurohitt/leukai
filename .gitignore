@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+model/*.pth
+*.zip
+leukemia_data/
+.DS_Store

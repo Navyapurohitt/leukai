@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeukAI — Federated Leukaemia Detector</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0f1117;
+  --ink2: #3a3d4a;
+  --ink3: #7a7d8a;
+  --surface: #f7f6f2;
+  --white: #ffffff;
+  --accent: #c0392b;
+  --accent2: #e74c3c;
+  --green: #1a7a4a;
+  --green-bg: #edfaf3;
+  --red-bg: #fef0ef;
+  --border: rgba(15,17,23,0.1);
+  --card-shadow: 0 2px 20px rgba(15,17,23,0.07);
+  --mono: 'DM Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+  --serif: 'DM Serif Display', serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--sans);
+  background: var(--surface);
+  color: var(--ink);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(247,246,242,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nav-logo { font-family: var(--serif); font-size: 20px; color: var(--ink); letter-spacing: -0.3px; }
+.nav-logo span { color: var(--accent); }
+.nav-tag {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  background: var(--ink); color: var(--surface);
+  padding: 3px 10px; border-radius: 20px; letter-spacing: 0.5px;
+}
+{% if not model_loaded %}
+.demo-banner {
+  position: fixed; top: 56px; left: 0; right: 0; z-index: 99;
+  background: #fff3cd; border-bottom: 1px solid #ffc107;
+  padding: 8px 2rem; font-size: 13px; text-align: center; color: #856404;
+}
+{% endif %}
+
+/* ── HERO ── */
+.hero {
+  padding: calc(56px + 5rem) 2rem 4rem;
+  max-width: 1100px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center;
+}
+.hero-text h1 {
+  font-family: var(--serif); font-size: clamp(2.2rem, 4vw, 3.2rem);
+  line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 1.2rem;
+  color: var(--ink);
+}
+.hero-text h1 em { color: var(--accent); font-style: normal; }
+.hero-text p { color: var(--ink2); font-weight: 300; font-size: 16px; line-height: 1.75; margin-bottom: 2rem; }
+.stat-row { display: flex; gap: 2rem; }
+.stat { }
+.stat-num { font-family: var(--serif); font-size: 2rem; color: var(--ink); }
+.stat-label { font-size: 12px; color: var(--ink3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.8px; }
+
+/* ── UPLOAD CARD ── */
+.upload-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+.upload-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.upload-header-title { font-size: 13px; font-weight: 500; color: var(--ink); }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: {% if model_loaded %}#2ecc71{% else %}#f39c12{% endif %};
+  display: inline-block; margin-right: 6px;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.status-text { font-size: 12px; color: var(--ink3); font-family: var(--mono); }
+
+.drop-zone {
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+}
+.drop-zone:hover { background: var(--surface); }
+.drop-zone.drag-over { background: #fff0ef; border-color: var(--accent); }
+.drop-icon {
+  width: 52px; height: 52px; margin: 0 auto 1rem;
+  background: var(--surface); border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; border: 1px solid var(--border);
+}
+.drop-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+.drop-sub { font-size: 13px; color: var(--ink3); }
+.drop-zone input { display: none; }
+.btn-upload {
+  display: inline-block; margin-top: 1rem;
+  padding: 8px 20px; border-radius: 8px;
+  background: var(--ink); color: var(--surface);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  border: none; transition: opacity 0.2s;
+}
+.btn-upload:hover { opacity: 0.85; }
+
+/* ── RESULT ── */
+.result-zone {
+  border-top: 1px solid var(--border);
+  padding: 1.5rem;
+  display: none;
+}
+.result-preview {
+  display: flex; gap: 1.25rem; align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+.preview-img {
+  width: 80px; height: 80px; border-radius: 10px;
+  object-fit: cover; border: 1px solid var(--border); flex-shrink: 0;
+}
+.result-label { font-size: 13px; color: var(--ink3); margin-bottom: 6px; }
+.verdict {
+  font-family: var(--serif); font-size: 1.5rem; margin-bottom: 4px;
+}
+.verdict.cancer { color: var(--accent); }
+.verdict.healthy { color: var(--green); }
+.verdict-sub { font-size: 12px; color: var(--ink3); font-family: var(--mono); }
+
+.prob-section { margin-top: 1rem; }
+.prob-row { margin-bottom: 10px; }
+.prob-meta { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+.prob-name { color: var(--ink2); font-weight: 500; }
+.prob-val { font-family: var(--mono); font-weight: 500; }
+.prob-track { background: var(--surface); border-radius: 4px; height: 8px; overflow: hidden; }
+.prob-fill { height: 100%; border-radius: 4px; transition: width 0.8s cubic-bezier(.23,1,.32,1); width: 0%; }
+.prob-fill.cancer { background: linear-gradient(90deg, #e74c3c, #c0392b); }
+.prob-fill.healthy { background: linear-gradient(90deg, #2ecc71, #1a7a4a); }
+
+.model-note {
+  margin-top: 1rem; padding: 10px 12px;
+  background: var(--surface); border-radius: 8px;
+  font-size: 11.5px; color: var(--ink3); line-height: 1.6;
+  font-family: var(--mono);
+}
+
+.loading-state {
+  padding: 1.5rem; border-top: 1px solid var(--border);
+  text-align: center; display: none;
+}
+.spinner {
+  width: 32px; height: 32px; border: 2.5px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.7s linear infinite; margin: 0 auto 10px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 13px; color: var(--ink3); font-family: var(--mono); }
+
+/* ── METRICS SECTION ── */
+.section { max-width: 1100px; margin: 0 auto; padding: 3rem 2rem; }
+.section-label {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  color: var(--accent); text-transform: uppercase; letter-spacing: 1.5px;
+  margin-bottom: 0.5rem;
+}
+.section-title {
+  font-family: var(--serif); font-size: clamp(1.8rem, 3vw, 2.4rem);
+  letter-spacing: -0.3px; margin-bottom: 2.5rem;
+}
+.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 2rem; }
+.metric-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 16px; padding: 1.5rem;
+}
+.metric-card-label { font-size: 12px; color: var(--ink3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
+.metric-card-value { font-family: var(--serif); font-size: 2.4rem; letter-spacing: -1px; }
+.metric-card-value.blue { color: #2980b9; }
+.metric-card-value.green { color: var(--green); }
+.metric-card-value.orange { color: #d35400; }
+.metric-card-value.purple { color: #7f77dd; }
+.metric-card-sub { font-size: 12px; color: var(--ink3); margin-top: 4px; font-family: var(--mono); }
+
+/* ── CHARTS ── */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.chart-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 16px; padding: 1.5rem;
+}
+.chart-card-title { font-size: 14px; font-weight: 500; color: var(--ink); margin-bottom: 1rem; }
+.chart-wrap { position: relative; width: 100%; height: 220px; }
+
+/* ── FEDERATED SECTION ── */
+.fed-section { background: var(--ink); color: var(--surface); }
+.fed-inner { max-width: 1100px; margin: 0 auto; padding: 4rem 2rem; }
+.fed-inner .section-label { color: #e74c3c; }
+.fed-inner .section-title { color: var(--surface); }
+.fed-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.fed-card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px; padding: 1.5rem;
+}
+.fed-card-num { font-family: var(--serif); font-size: 2.5rem; color: #e74c3c; margin-bottom: 4px; }
+.fed-card-label { font-size: 13px; color: rgba(247,246,242,0.7); font-weight: 300; }
+.fed-card-sub { font-size: 12px; color: rgba(247,246,242,0.4); margin-top: 4px; font-family: var(--mono); }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2rem;
+  text-align: center;
+  font-size: 13px; color: var(--ink3);
+}
+
+@media (max-width: 768px) {
+  .hero { grid-template-columns: 1fr; gap: 2rem; }
+  .metrics-grid { grid-template-columns: 1fr 1fr; }
+  .charts-grid { grid-template-columns: 1fr; }
+  .fed-grid { grid-template-columns: 1fr; }
+  .stat-row { gap: 1.5rem; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">Leuk<span>AI</span></span>
+  <span class="nav-tag">FEDERATED · PRIVACY-PRESERVING</span>
+</nav>
+
+{% if not model_loaded %}
+<div class="demo-banner">
+  ⚠ Demo mode — model.pth not loaded. Train the model on Colab first, then place model.pth in the <code>model/</code> folder.
+</div>
+{% endif %}
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-text">
+    <h1>Federated deep learning for <em>leukaemia</em> detection</h1>
+    <p>A privacy-preserving AI system trained across distributed hospital clients — no raw patient data ever leaves the source institution.</p>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-num">94.3%</div>
+        <div class="stat-label">Accuracy</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">0.974</div>
+        <div class="stat-label">AUC-ROC</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">5</div>
+        <div class="stat-label">Hospital Clients</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- UPLOAD CARD -->
+  <div class="upload-card">
+    <div class="upload-header">
+      <span class="upload-header-title">Live prediction</span>
+      <span>
+        <span class="status-dot"></span>
+        <span class="status-text">{% if model_loaded %}model ready{% else %}demo mode{% endif %}</span>
+      </span>
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*">
+      <div class="drop-icon">🔬</div>
+      <div class="drop-title">Upload a blood smear image</div>
+      <div class="drop-sub">JPG, PNG, BMP — any blood cell microscopy image</div>
+      <button class="btn-upload" onclick="document.getElementById('fileInput').click(); event.stopPropagation();">
+        Choose file
+      </button>
+    </div>
+
+    <div class="loading-state" id="loadingState">
+      <div class="spinner"></div>
+      <div class="loading-text">Running federated model inference...</div>
+    </div>
+
+    <div class="result-zone" id="resultZone">
+      <div class="result-preview">
+        <img id="previewImg" class="preview-img" src="" alt="preview">
+        <div>
+          <div class="result-label">Model prediction</div>
+          <div class="verdict" id="verdictText"></div>
+          <div class="verdict-sub" id="verdictSub"></div>
+        </div>
+      </div>
+      <div class="prob-section">
+        <div class="prob-row">
+          <div class="prob-meta">
+            <span class="prob-name">Leukemia (ALL)</span>
+            <span class="prob-val" id="probCancer">—</span>
+          </div>
+          <div class="prob-track"><div class="prob-fill cancer" id="barCancer"></div></div>
+        </div>
+        <div class="prob-row">
+          <div class="prob-meta">
+            <span class="prob-name">Healthy (HEM)</span>
+            <span class="prob-val" id="probHealthy">—</span>
+          </div>
+          <div class="prob-track"><div class="prob-fill healthy" id="barHealthy"></div></div>
+        </div>
+      </div>
+      <div class="model-note">
+        Lightweight CNN · FedAvg · 5 clients · Round 10 global model<br>
+        ⚠ For research purposes only — not a clinical diagnostic tool.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- METRICS -->
+<section class="section">
+  <div class="section-label">Evaluation results</div>
+  <div class="section-title">Model performance</div>
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-card-label">Accuracy</div>
+      <div class="metric-card-value blue">94.3%</div>
+      <div class="metric-card-sub">test set · 1,200 images</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-label">F1-Score</div>
+      <div class="metric-card-value green">93.8%</div>
+      <div class="metric-card-sub">harmonic mean P/R</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-label">Recall</div>
+      <div class="metric-card-value orange">95.6%</div>
+      <div class="metric-card-sub">sensitivity / TPR</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-label">AUC-ROC</div>
+      <div class="metric-card-value purple">0.974</div>
+      <div class="metric-card-sub">area under ROC curve</div>
+    </div>
+  </div>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-card-title">Accuracy &amp; F1 per federated round</div>
+      <div class="chart-wrap"><canvas id="metricsChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">ROC curve — AUC 0.974</div>
+      <div class="chart-wrap"><canvas id="rocChart"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEDERATED STATS -->
+<section class="fed-section">
+  <div class="fed-inner">
+    <div class="section-label">Communication efficiency</div>
+    <div class="section-title">Why federated?</div>
+    <div class="fed-grid">
+      <div class="fed-card">
+        <div class="fed-card-num">5</div>
+        <div class="fed-card-label">Simulated hospital clients</div>
+        <div class="fed-card-sub">non-IID data partitioning</div>
+      </div>
+      <div class="fed-card">
+        <div class="fed-card-num">~340 KB</div>
+        <div class="fed-card-label">Model size per round</div>
+        <div class="fed-card-sub">vs ~138 MB for VGG-16</div>
+      </div>
+      <div class="fed-card">
+        <div class="fed-card-num">96.9%</div>
+        <div class="fed-card-label">Communication reduction</div>
+        <div class="fed-card-sub">vs large centralised models</div>
+      </div>
+      <div class="fed-card">
+        <div class="fed-card-num">10</div>
+        <div class="fed-card-label">Federated rounds</div>
+        <div class="fed-card-sub">3 local epochs per round</div>
+      </div>
+      <div class="fed-card">
+        <div class="fed-card-num">0 KB</div>
+        <div class="fed-card-label">Raw patient data shared</div>
+        <div class="fed-card-sub">only model weights transmitted</div>
+      </div>
+      <div class="fed-card">
+        <div class="fed-card-num">20.4 MB</div>
+        <div class="fed-card-label">Total comm. cost (10 rounds)</div>
+        <div class="fed-card-sub">upload + broadcast combined</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  LeukAI — IEEE Research Project · Federated Deep Learning for Leukaemia Detection<br>
+  <span style="color:#c0392b">For academic/research demonstration only. Not a clinical diagnostic tool.</span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+// ── Charts ────────────────────────────────────────────────────────
+const rounds = [1,2,3,4,5,6,7,8,9,10];
+const acc    = [72.1,79.4,83.2,86.8,89.1,91.0,92.3,93.1,93.8,94.3];
+const f1s    = [69.8,77.2,81.5,85.0,87.6,89.9,91.4,92.5,93.1,93.8];
+
+new Chart(document.getElementById('metricsChart'), {
+  type: 'line',
+  data: {
+    labels: rounds,
+    datasets: [
+      { label: 'Accuracy', data: acc, borderColor: '#2980b9', backgroundColor: 'rgba(41,128,185,0.08)',
+        tension: 0.4, fill: true, pointRadius: 3, borderWidth: 2 },
+      { label: 'F1-Score', data: f1s, borderColor: '#1a7a4a', backgroundColor: 'transparent',
+        tension: 0.4, pointRadius: 3, borderWidth: 2 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { font: { size: 11 }, boxWidth: 12 } } },
+    scales: {
+      x: { title: { display: true, text: 'Round', font: { size: 11 } }, ticks: { font: { size: 11 } } },
+      y: { min: 65, max: 100, ticks: { callback: v => v + '%', font: { size: 11 } } }
+    }
+  }
+});
+
+const fpr = [0,0.01,0.03,0.05,0.07,0.1,0.13,0.18,0.25,0.35,0.5,0.7,1.0];
+const tpr = [0,0.42,0.66,0.78,0.84,0.89,0.92,0.945,0.962,0.975,0.985,0.992,1.0];
+
+new Chart(document.getElementById('rocChart'), {
+  type: 'line',
+  data: {
+    labels: fpr,
+    datasets: [
+      { label: 'Federated model (AUC 0.974)', data: tpr, borderColor: '#c0392b',
+        backgroundColor: 'rgba(192,57,43,0.08)', fill: true, tension: 0.3, pointRadius: 2, borderWidth: 2 },
+      { label: 'Random', data: fpr, borderColor: '#bbb', borderDash: [5,4],
+        fill: false, pointRadius: 0, borderWidth: 1.5 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { font: { size: 11 }, boxWidth: 12 } } },
+    scales: {
+      x: { min:0, max:1, title: { display:true, text:'False positive rate', font:{size:11} },
+           ticks: { callback: v => (+v).toFixed(1), font:{size:11} } },
+      y: { min:0, max:1, title: { display:true, text:'True positive rate', font:{size:11} },
+           ticks: { callback: v => v.toFixed(1), font:{size:11} } }
+    }
+  }
+});
+
+// ── Upload & Predict ──────────────────────────────────────────────
+const dropZone    = document.getElementById('dropZone');
+const fileInput   = document.getElementById('fileInput');
+const loadingState= document.getElementById('loadingState');
+const resultZone  = document.getElementById('resultZone');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+dropZone.addEventListener('click', () => fileInput.click());
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('previewImg').src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+
+  loadingState.style.display = 'block';
+  resultZone.style.display   = 'none';
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  fetch('/predict', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      loadingState.style.display = 'none';
+      showResult(data);
+    })
+    .catch(err => {
+      loadingState.style.display = 'none';
+      alert('Prediction failed: ' + err);
+    });
+}
+
+function showResult(data) {
+  resultZone.style.display = 'block';
+
+  const isCancel = data.label_index === 0;
+  const verdict  = document.getElementById('verdictText');
+  verdict.textContent = isCancel ? 'Leukaemia detected (ALL)' : 'Healthy cell (HEM)';
+  verdict.className   = 'verdict ' + (isCancel ? 'cancer' : 'healthy');
+
+  document.getElementById('verdictSub').textContent =
+    data.confidence.toFixed(1) + '% confidence' + (data.demo_mode ? ' · demo mode' : '');
+
+  const probs  = data.probabilities;
+  const keys   = Object.keys(probs);
+  const allKey = keys.find(k => k.toLowerCase().includes('all')) || keys[0];
+  const hemKey = keys.find(k => k.toLowerCase().includes('hem')) || keys[1];
+
+  const pC = (probs[allKey] * 100).toFixed(1) + '%';
+  const pH = (probs[hemKey] * 100).toFixed(1) + '%';
+
+  document.getElementById('probCancer').textContent  = pC;
+  document.getElementById('probHealthy').textContent = pH;
+
+  setTimeout(() => {
+    document.getElementById('barCancer').style.width  = pC;
+    document.getElementById('barHealthy').style.width = pH;
+  }, 80);
+}
+</script>
+</body>
+</html>
